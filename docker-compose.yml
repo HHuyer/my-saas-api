@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Persist the SQLite database so data survives container restarts
+      - ./prisma/dev.db:/app/prisma/dev.db
+    restart: unless-stopped

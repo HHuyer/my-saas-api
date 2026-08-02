@@ -1,0 +1,214 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  projects  Project[]
+  workflows Workflow[]     @relation("WorkflowOwner")
+  scheduledWorkflows ScheduledWorkflow[]
+  notifications Notification[]
+  sharedWorkflowsFromOthers SharedWorkflow[] @relation("SharedWorkflowSharedWith")
+  sharedWorkflowsByMe SharedWorkflow[] @relation("SharedWorkflowOwner")
+
+  @@map("users")
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  description String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user       User          @relation(fields: [userId], references: [id])
+  workflows  Workflow[]
+
+  @@unique([userId, name])
+  @@map("projects")
+}
+
+model Workflow {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  definition  String   // JSON string for workflow definition
+  status      String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  runs        WorkflowRun[]
+  scheduledWorkflows ScheduledWorkflow[]
+  owner       User?     @relation("WorkflowOwner", fields: [ownerId], references: [id])
+  ownerId     String?
+  sharedWorkflows SharedWorkflow[]
+
+  @@index([projectId])
+  @@index([ownerId])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id           String   @id @default(uuid())
+  status       String   // RUNNING, COMPLETED, FAILED
+  errorMessage String?
+  isScheduled  Boolean  @default(false)
+  scheduledWorkflowId String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  output       String?  // JSON string of run result/outputs
+  createdAt    DateTime @default(now())
+
+  // Relations
+  workflowId   String
+  workflow     Workflow  @relation(fields: [workflowId], references: [id])
+  nodeLogs     WorkflowNodeLog[]
+
+  @@index([workflowId])
+  @@index([status])
+  @@map("workflow_runs")
+}
+
+model WorkflowNodeLog {
+  id           String   @id @default(uuid())
+  status       String   // SUCCESS, FAILED
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id])
+  nodeId        String
+
+  @@index([workflowRunId])
+  @@index([nodeId])
+  @@map("workflow_node_logs")
+}
+
+// Scheduled Workflows
+model ScheduledWorkflow {
+  id                String   @id @default(uuid())
+  name              String
+  cronExpression    String   // Cron expression for scheduling
+  status            String   @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, FAILED
+  description       String?
+  nextRunAt         DateTime
+  lastRunAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  workflowId        String
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  logs              ScheduledWorkflowLog[]
+
+  @@index([workflowId])
+  @@index([userId])
+  @@map("scheduled_workflows")
+}
+
+model ScheduledWorkflowLog {
+  id                String   @id @default(uuid())
+  status            String   // SUCCESS, FAILED
+  errorMessage      String?
+  errorStack        String?
+  createdAt         DateTime @default(now())
+
+  // Relations
+  scheduledWorkflowId String
+  scheduledWorkflow  ScheduledWorkflow @relation(fields: [scheduledWorkflowId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledWorkflowId])
+  @@map("scheduled_workflow_logs")
+}
+
+// Notification System
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // EMAIL, IN_APP, PUSH
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  metadata    String?  // JSON string
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// Webhooks
+model Webhook {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  secret      String
+  isActive    Boolean  @default(true)
+  events      String   // JSON string for events
+  headers     String?  // JSON string for custom headers
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+// Shared Workflows
+model SharedWorkflow {
+  id          String   @id @default(uuid())
+  workflowId  String
+  userId      String   // Owner
+  sharedWithId String   // User who has access
+  permission  String   @default("VIEW") // VIEW, EDIT, ADMIN
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user        User     @relation("SharedWorkflowOwner", fields: [userId], references: [id])
+  sharedWith  User     @relation("SharedWorkflowSharedWith", fields: [sharedWithId], references: [id])
+
+  @@unique([workflowId, sharedWithId])
+  @@index([userId])
+  @@index([sharedWithId])
+  @@map("shared_workflows")
+}
+
+// Settings
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string") // string, number, boolean, json
+  category    String?  // system, user, app
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("settings")
+}
