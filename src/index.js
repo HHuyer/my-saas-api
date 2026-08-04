@@ -133,10 +133,28 @@ app.use('/api/templates', templatesRoutes);
 
 logger.info('All routes mounted');
 
+// Production: serve static frontend files + SPA fallback (React Router)
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  const frontendDist = path.join(__dirname, '../frontend/dist');
+
+  // Serve static files from frontend/dist
+  app.use(express.static(frontendDist));
+
+  // SPA fallback: catch all non-API routes and serve index.html
+  app.get('*', (req, res) => {
+    // Prevent API routes from falling through to index.html
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'Route not found' });
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
+
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// 404 handler
+// 404 handler (catches all remaining requests)
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });

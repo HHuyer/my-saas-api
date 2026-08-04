@@ -1,0 +1,49 @@
+# Dependencies (copy from host)
+node_modules/
+frontend/node_modules/
+
+# Build output (node_modules/backend + node_modules/frontend)
+dist/
+build/
+
+# Logs
+*.log
+logs/
+src/logs/
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+prisma/prod.db
+prisma/prod.db-journal
+
+# Environment files (commit template only)
+.env
+.env.*
+!.env.production.example
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Docker files (for local dev, not needed in container)
+Dockerfile
+.dockerignore
+
+# Documentation (optional)
+docs/
+README.md
