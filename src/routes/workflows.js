@@ -68,7 +68,14 @@ router.post('/', authenticateToken, async (req, res) => {
 // Get all workflows for a project
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { projectId } = req.params;
+    // Extract projectId from baseUrl (same approach as POST — Express does not
+    // merge parent route params into mounted routers without mergeParams:true)
+    const pathParts = req.baseUrl.split('/').filter(Boolean);
+    const projectId = pathParts[pathParts.length - 2]; // second-to-last segment
+
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
 
     // Validate project belongs to user
     const project = await req.db.project.findFirst({
