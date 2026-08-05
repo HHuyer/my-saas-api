@@ -85,9 +85,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         logger.info(`User authenticated: ${req.user.email}`);
 
         // Redirect to frontend with token
-        const frontendUrl = process.env.NODE_ENV === 'production'
-          ? 'https://your-domain.com'
-          : 'http://localhost:3000';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
         res.redirect(`${frontendUrl}?token=${token}`);
       } catch (error) {
@@ -137,9 +135,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
         logger.info(`User authenticated: ${req.user.email}`);
 
         // Redirect to frontend with token
-        const frontendUrl = process.env.NODE_ENV === 'production'
-          ? 'https://your-domain.com'
-          : 'http://localhost:3000';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
         res.redirect(`${frontendUrl}?token=${token}`);
       } catch (error) {
