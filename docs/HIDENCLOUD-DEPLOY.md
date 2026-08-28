@@ -1,279 +1,266 @@
-# HidenCloud Deployment Guide
+# Deploy lên HidenCloud App Hosting
 
-**Overview**: Deploy my-saas-api to HidenCloud App Hosting (Node.js 23 container) with GitHub auto-deploy via `GIT_ADDRESS` + `AUTO_UPDATE=1`.
+This guide explains how to deploy your my-saas-api application to HidenCloud App Hosting with GitHub auto-deploy.
 
----
+## Overview
+
+- **Container**: Node.js 23 (yolks:nodejs_23)
+- **Auto-deploy**: Via `GIT_ADDRESS` + `AUTO_UPDATE=1` (git pull on restart)
+- **Reverse proxy**: Automatic HTTPS (wildcard cert for *.hidenfree.com)
+- **Database**: SQLite (file-based)
+- **Frontend**: Served from backend as static files
 
 ## Prerequisites
 
-- GitHub repository (public or private)
-- HidenCloud account
-- GitHub Personal Access Token (PAT) if repo is private
-- Domain or subdomain (optional, for production)
+1. GitHub repository (public or private)
+2. HidenCloud account
+3. For private repo: GitHub PAT with minimal scope (repo:read only)
 
----
+## Step-by-Step Instructions
 
-## Step 1: Set Environment Variables in HidenCloud Panel
+### Step 1: Configure GitHub Repo
 
-Log in to your HidenCloud panel and configure the following variables.
+1. Go to your GitHub repository settings
+2. Copy the repo URL (e.g., `https://github.com/HHuyer/my-saas-api.git`)
+3. **For private repo only**: Generate PAT
+   - Go to Settings → Developer settings → Personal access tokens → Tokens (classic)
+   - Create new token with scopes: `repo:read` (NOT full access!)
+   - Copy the token (save it securely)
 
-### Required Variables
+### Step 2: Create HidenCloud Server
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `GIT_ADDRESS` | GitHub repository URL | `https://github.com/yourusername/my-saas-api.git` |
-| `BRANCH` | Git branch to deploy | `main` |
-| `AUTO_UPDATE` | Enable auto git pull on restart | `1` |
+1. Log in to HidenCloud panel: https://freepanel.hidencloud.com
+2. Click "Create Server"
+3. Configure:
+   - **Name**: `my-saas-api`
+   - **Node**: Node.js 23 (yolks:nodejs_23)
+   - **Main file**: `src/index.js`
+   - **Additional arguments**: (Leave empty)
+   - **Git Repo Address**: `https://github.com/HHuyer/my-saas-api.git`
+   - **Install Branch**: `main`
+   - **Auto Update**: `1` (automatically pull code on restart)
+   - **Username**: (Only if private repo) Your GitHub username
+   - **Access Token**: (Only if private repo) Your PAT (without scope)
 
-### Database
+### Step 3: Set Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | SQLite database file path | `file:./prisma/prod.db` |
+Navigate to **Startup Settings** → **Environment Variables** tab and add:
 
-**⚠️ CRITICAL**: HidenCloud filesystem may be wiped on container restart/rebuild. Verify volume persistence before trusting production data.
-
-### Security
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment mode | `production` |
-| `PORT` | Server port | `3000` |
-| `JWT_SECRET` | Strong random secret for JWT tokens | Use `openssl rand -base64 32` to generate |
-
-### CORS
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `ALLOWED_ORIGINS` | Comma-separated allowed origins | `https://your-app.is-a.dev,https://your-app.hidenfree.com` |
-| `FRONTEND_URL` | Frontend URL for OAuth callbacks | `https://your-app.is-a.dev` |
-
-### OAuth Callback URLs
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `GOOGLE_CALLBACK_URL` | Google OAuth callback | `https://your-app.is-a.dev/api/auth/google/callback` |
-| `GITHUB_CALLBACK_URL` | GitHub OAuth callback | `https://your-app.is-a.dev/api/auth/github/callback` |
-
----
-
-## Step 2: Create GitHub PAT (for Private Repositories)
-
-**If your repository is PUBLIC**: Skip this step (no authentication needed).
-
-### Create PAT with Minimal Scope
-
-1. Go to https://github.com/settings/tokens
-2. Click "Generate new token" → "Generate new token (classic)"
-3. **IMPORTANT**: Select **repo:read** scope ONLY (do NOT use full repo access)
-4. Token name: `HidenCloud Auto-Deploy`
-5. Generate token
-6. **Copy the token immediately** (you won't see it again)
-
-### Store PAT in HidenCloud Panel
-
-1. Navigate to Environment Variables in HidenCloud
-2. Add `USERNAME` (your GitHub username)
-3. Add `ACCESS_TOKEN` (paste the PAT you just created)
-
-⚠️ **Security Warning**: The PAT is stored **plaintext** in HidenCloud panel. If the panel is compromised, the token will be exposed. Use PAT with minimal scope (`repo:read`) to limit damage.
-
----
-
-## Step 3: Set Up Repository on HidenCloud
-
-1. **For PUBLIC repos**: Done (just set `GIT_ADDRESS` and `BRANCH`)
-2. **For PRIVATE repos**: Set `USERNAME` and `ACCESS_TOKEN` environment variables
-
----
-
-## Step 4: Set Production Environment Variables
-
-Create `.env` file locally (or set variables directly in HidenCloud panel):
-
-```bash
-# Copy from .env.production.example
-cp .env.production.example .env.production
-
-# Edit and replace placeholders
-nano .env.production
+**Required variables:**
+```
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=file:./prisma/prod.db
+JWT_SECRET=<your-strong-random-secret>
+ALLOWED_ORIGINS=https://<your-name>.is-a.dev,https://<your-name>.hidenfree.com
+FRONTEND_URL=https://<your-name>.is-a.dev
 ```
 
-Set these values:
-- `JWT_SECRET`: Strong random secret
-- `DATABASE_URL=file:./prisma/prod.db`
-- `ALLOWED_ORIGINS=https://your-app.is-a.dev,https://your-app.hidenfree.com`
-- `FRONTEND_URL=https://your-app.is-a.dev`
-- `GOOGLE_CALLBACK_URL=https://your-app.is-a.dev/api/auth/google/callback`
-- `GITHUB_CALLBACK_URL=https://your-app.is-a.dev/api/auth/github/callback`
-
-**Then set these in HidenCloud panel** (do not commit `.env.production` to git):
-- `NODE_ENV=production`
-- `PORT=3000`
-- OAuth keys (if using Google/GitHub auth)
-
----
-
-## Step 5: Verify Volume Persistence (CRITICAL)
-
-**Before trusting production data, verify HidenCloud persists files on restart.**
-
-### Test Procedure
-
-1. Deploy the app with a sample database entry
-2. Restart the container
-3. Check if the data still exists
-
-**Ask HidenCloud Support:**
-- "Which directory persists across container restarts?"
-- "Does HidenCloud provide volume mounts or persistent storage?"
-- "Is the filesystem wiped on rebuild?"
-
-### If Volume Does NOT Persist
-
-You **must migrate to PostgreSQL immediately**. See `POSTGRESQL-MIGRATION.md` for instructions.
-
----
-
-## Step 6: Restart Server
-
-1. Go to your app on HidenCloud panel
-2. Click "Restart"
-3. Wait 1-2 minutes for:
-   - Git pull (if `AUTO_UPDATE=1`)
-   - `npm install` (if `node_modules` is missing)
-   - Frontend build (if `frontend/dist/` is missing)
-   - Prisma migrate deploy
-
-### Auto-Update Flow
-
-With `AUTO_UPDATE=1`:
-1. You push code to GitHub (or merge PR)
-2. HidenCloud detects changes
-3. **Restart server** → auto git pull
-4. `start.sh` runs:
-   - `npm install --omit=dev` (skip if `node_modules` exists)
-   - Frontend build (skip if `frontend/dist` exists)
-   - `prisma migrate deploy`
-   - `node src/index.js`
-
-### Manual Restart (after code changes)
-
-If you want to manually trigger a restart:
-1. Push changes to GitHub
-2. Restart HidenCloud app
-3. Git pull will happen automatically
-
----
-
-## Step 7: Verify Deployment
-
-### Check Health Endpoint
-
-```bash
-curl https://your-app.hidenfree.com/health
+**OAuth variables** (optional, only if configured):
+```
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=https://<your-name>.is-a.dev/api/auth/google/callback
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_CALLBACK_URL=https://<your-name>.is-a.dev/api/auth/github/callback
 ```
 
-Expected response:
-```json
-{
-  "status": "ok",
-  "timestamp": "2024-XX-XXTXX:XX:XX.Z",
-  "uptime": 123.456
-}
+**AI variables** (optional):
+```
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+DEEPSEEK_API_KEY=sk-...
 ```
 
-### Check Frontend & Backend
+**SMTP variables** (optional, for email notifications):
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+```
 
-1. Visit `https://your-app.hidenfree.com`
-2. Verify you can log in
-3. Verify you can create projects, workflows, etc.
+> **Security Note**: JWT_SECRET must be a strong random string (at least 32 characters). Generate one with:
+> ```bash
+> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> ```
 
----
+### Step 4: Start the Server
 
-## Deployment Workflow After Changes
+1. Click **Save** (or **Apply Changes**)
+2. Click **Start** button
+3. Wait 30-60 seconds for:
+   - Server to start
+   - npm install (first time only)
+   - Frontend build (first time only)
+   - Prisma migrations
 
-1. **Code changes** → Push to GitHub
-2. **CI runs tests** (`.github/workflows/ci.yml`):
-   ```yaml
-   name: CI
-   on: push/PR to main
-   jobs:
-     test:
-       runs-on: ubuntu-latest
-       steps:
-         - npm ci
-         - npx prisma generate
-         - npm test
+4. Monitor logs to see progress:
+   - Installation logs
+   - Build logs
+   - Server startup
+
+### Step 5: Verify Deployment
+
+1. Check server status: Should show **ONLINE** (0 Bytes / 15 GiB)
+2. Test health endpoint:
+   ```bash
+   curl https://<your-name>.hidenfree.com/health
    ```
-3. **Manual deploy**:
-   - Go to HidenCloud panel
-   - Click "Restart"
-   - Git pull code
-   - Rebuild if needed
-   - Restart server
+   Should return: `{"status":"ok"}`
 
-**⚠️ Note**: CI does NOT deploy automatically. You must restart HidenCloud manually after CI passes.
+3. Visit your app in browser:
+   - `https://<your-name>.hidenfree.com`
+   - Or `http://<your-name>.hidenfree.com:3000` (if accessible)
 
----
+4. Test features:
+   - Login (test-login: test@example.com)
+   - Create project
+   - Create workflow
+   - Run workflow
+   - Check logs
+
+### Step 6: Configure Domain (Optional)
+
+Follow [IS-A-DEV-DNS.md](./IS-A-DEV-DNS.md) to configure a free `.is-a.dev` domain.
+
+## Volume Persistence
+
+**IMPORTANT**: Verify SQLite database persists across restarts before trusting it in production.
+
+### Test Volume Persistence:
+
+1. Create a workflow and run it
+2. Check database exists: `ls prisma/prod.db`
+3. Restart server via HidenCloud panel
+4. Check database still exists: `ls prisma/prod.db`
+5. Login and verify your workflow still exists
+
+**If database is lost on restart:**
+- Contact HidenCloud support to ask which volume persists
+- Consider migrating to PostgreSQL (see [POSTGRESQL-MIGRATION.md](./POSTGRESQL-MIGRATION.md))
+
+## Deployment Workflow
+
+After initial setup:
+
+1. **Development/Changes**:
+   - Make changes locally
+   - Commit and push to GitHub
+
+2. **CI (Automated)**:
+   - GitHub Actions workflow runs tests
+   - Check CI status: https://github.com/HHuyer/my-saas-api/actions
+
+3. **Deploy**:
+   - Go to HidenCloud panel → **Restart Server**
+   - Server pulls latest code (`git pull`)
+   - If code changes, may need rebuild (depends on changes)
+   - Start button auto-restarts server
+
+4. **Verification**:
+   - Check server status
+   - Test critical features
+   - Monitor logs
 
 ## Troubleshooting
 
-### Container Fails to Start
+**Server stuck at INSTALLING:**
 
-**Error**: `Error: ENOENT: no such file or directory, open 'prisma/prod.db'`
+1. Check HidenCloud logs for errors
+2. Verify git credentials are correct (if using private repo)
+3. Ensure branch name matches (`main`)
 
-**Solution**:
-1. Check `DATABASE_URL` is set correctly
-2. Run `prisma migrate deploy` manually:
-   ```bash
-   npx prisma migrate deploy
-   ```
-3. Verify `prisma/migrations/` folder exists
+**Server shows OFFLINE:**
 
-### Frontend 404
+1. Check environment variables are set correctly
+2. Verify server image is `ghcr.io/parkervcp/yolks:nodejs_23`
+3. Ensure Main file path is `src/index.js`
+4. Check logs for startup errors
 
-**Error**: `https://your-app.hidenfree.com` returns 404
+**Frontend not loading:**
 
-**Solution**:
-1. Check `NODE_ENV=production` is set
-2. Verify `frontend/dist/` folder exists
-3. Check `src/index.js` has static serving logic
-4. Restart server
+1. Verify environment variable `FRONTEND_URL` is set
+2. Check server logs for errors
+3. Try restarting server
+4. Check browser console for CORS errors
 
-### Prisma Migration Fails
+**Database errors:**
 
-**Error**: `Prisma Client was generated with a different schema`
+1. Check `DATABASE_URL` is correct (`file:./prisma/prod.db`)
+2. Verify Prisma migrations ran successfully (check logs)
+3. Check volume persistence (see above)
+4. Consider testing with PostgreSQL
 
-**Solution**:
-1. Run `npx prisma generate` locally
-2. Commit `node_modules/@prisma/client/` if needed
-3. Or regenerate on HidenCloud: `npx prisma generate`
+**OAuth not working:**
 
-### OAuth Callback 404
+1. Verify callback URLs in env vars match your domain
+2. Check OAuth app configuration on Google/GitHub
+3. Verify redirect URLs include:
+   - `https://<name>.is-a.dev/api/auth/google/callback`
+   - `https://<name>.is-a.dev/api/auth/github/callback`
 
-**Error**: `https://your-app.is-a.dev/api/auth/google/callback` returns 404
+**High CPU/Memory usage:**
 
-**Solution**:
-1. Check `GITHUB_CALLBACK_URL` / `GOOGLE_CALLBACK_URL` matches production URL
-2. Verify OAuth app redirect URIs in Google/GitHub developer console
-3. Restart server to reload routes
-
----
+1. Check for infinite loops in workflow definitions
+2. Review workflow execution logs
+3. Consider adding rate limiting
+4. Check for memory leaks
 
 ## Security Checklist
 
-- [ ] `JWT_SECRET` is strong random string
-- [ ] `ALLOWED_ORIGINS` includes production URLs only
-- [ ] OAuth keys are stored in HidenCloud panel (not in git)
-- [ ] PAT scope is `repo:read` (not full access)
-- [ ] `.env.production` is **NOT** committed to git
+- [ ] JWT_SECRET is a strong random string
+- [ ] Database URL uses SQLite file path (not connection string)
+- [ ] OAuth callback URLs match production domain
+- [ ] CORS allowed origins only include your domains
+- [ ] No sensitive data in logs (check if you're logging secrets)
 - [ ] Volume persistence verified
+- [ ] HTTPS enabled (automatic via HidenCloud)
 
----
+## Maintenance
 
-## Next Steps
+### Backup Database
 
-- Configure domain via `docs/IS-A-DEV-DNS.md`
-- Migrate to PostgreSQL if volume persistence is not guaranteed
-- Set up backup/monitoring (optional)
+```bash
+# In HidenCloud panel → Terminal
+cp prisma/prod.db prisma/prod.db.backup
+```
+
+### View Logs
+
+1. Go to HidenCloud panel → Server details
+2. Click **Logs** tab
+3. Monitor real-time logs or download history
+
+### Update Application
+
+```bash
+# 1. Push changes to GitHub
+git add .
+git commit -m "Update feature"
+git push origin main
+
+# 2. Restart server on HidenCloud panel
+# Server will auto-pull latest code
+
+# 3. Test changes
+```
+
+### Restart Server
+
+- Click **Restart** button in HidenCloud panel
+- Or use API: `POST https://freepanel.hidencloud.com/api/servers/{id}/restart`
+
+## References
+
+- [HidenCloud Documentation](https://hidencloud.com/docs)
+- [HidenCloud App Hosting Guide](https://hidencloud.com/docs/app-hosting)
+- [is-a.dev DNS Guide](./IS-A-DEV-DNS.md)
+- [PostgreSQL Migration Guide](./POSTGRESQL-MIGRATION.md)
+- [GitHub Actions CI](https://github.com/HHuyer/my-saas-api/actions)
+
+## Support
+
+- HidenCloud support: https://hidencloud.com/support
+- HidenCloud Discord: (if available)
