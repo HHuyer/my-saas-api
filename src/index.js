@@ -29,7 +29,12 @@ const sharingRoutes = require('./routes/sharing');
 const app = express();
 
 // Security middleware
+// HSTS disabled: the app is served over plain HTTP inside the container
+// (TLS terminates at the host's reverse proxy, which adds its own HSTS).
+// Sending HSTS over http:// breaks direct port access — browsers force-HTTPS
+// assets and fail with ERR_SSL_PROTOCOL_ERROR.
 app.use(helmet({
+  strictTransportSecurity: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
