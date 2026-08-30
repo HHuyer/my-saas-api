@@ -44,6 +44,9 @@ app.use(helmet({
       connectSrc: ["'self'", "https:"],
       fontSrc: ["'self'", "https:"],
       objectSrc: ["'none'"],
+      // helmet adds upgrade-insecure-requests by default; it breaks asset
+      // loading on the plain-HTTP direct port the same way HSTS does.
+      upgradeInsecureRequests: null,
     },
   },
 }));
